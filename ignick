@@ -1,0 +1,102 @@
+import requests
+import random
+import string
+import time
+import sys
+import os
+
+DEVELOPER = "@shelteralbayrak"
+PASSWORD = "albayrak"
+
+def clear_screen():
+    os.system('clear' if os.name == 'posix' else 'cls')
+
+def slow_print(text, delay=0.03):
+    for c in text:
+        print(c, end='', flush=True)
+        time.sleep(delay)
+    print()
+
+def loading_animation(duration=3):
+    chars = "|/-\\"
+    end_time = time.time() + duration
+    idx = 0
+    while time.time() < end_time:
+        print(f"\rYükleniyor... {chars[idx % len(chars)]}", end='', flush=True)
+        idx += 1
+        time.sleep(0.1)
+    print("\r" + " " * 20, end='\r')
+
+def check_username(username):
+    url = f"https://www.instagram.com/{username}/"
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            return True
+        elif response.status_code == 404:
+            return False
+        else:
+            return None
+    except requests.exceptions.RequestException:
+        return None
+
+def generate_random_username():
+    length = random.choice([4,5])  # 4 veya 5 karakter
+    return ''.join(random.choices(string.ascii_lowercase, k=length))
+
+def password_check():
+    clear_screen()
+    slow_print("Hoşgeldin! Lütfen şifreyi gir:", 0.05)
+    pw = input("> ")
+    if pw != PASSWORD:
+        slow_print("Hatalı şifre! Program kapatılıyor...", 0.05)
+        time.sleep(2)
+        sys.exit()
+
+def show_menu():
+    clear_screen()
+    slow_print("instanickchecker - Instagram 4-5 Harfli Kullanıcı Adı Deneme Aracı", 0.05)
+    slow_print(f"Geliştirici: {DEVELOPER}\n", 0.03)
+    print("1) Rastgele Kullanıcı Adı Denemeye Başla")
+    print("2) Çıkış")
+    print()
+
+def main():
+    password_check()
+    checked_usernames = set()
+
+    while True:
+        show_menu()
+        choice = input("Seçiminiz: ")
+        if choice == "1":
+            clear_screen()
+            slow_print("Rastgele 4 veya 5 harfli kullanıcı adları deneniyor...", 0.03)
+            loading_animation(2)
+            try:
+                while True:
+                    username = generate_random_username()
+                    if username in checked_usernames:
+                        continue
+                    checked_usernames.add(username)
+
+                    exists = check_username(username)
+                    if exists is True:
+                        print(f"Kullanılıyor: {username}")
+                    elif exists is False:
+                        print(f"Boş: {username}")
+                    else:
+                        print(f"Hata kontrolü: {username}")
+
+                    time.sleep(0.2)  # Instagram engeline karşı yavaşlatma
+            except KeyboardInterrupt:
+                input("\nDurduruldu. Devam etmek için Enter'a bas...")
+        elif choice == "2":
+            slow_print("Programdan çıkılıyor. Hoşçakal!", 0.03)
+            time.sleep(1)
+            break
+        else:
+            slow_print("Geçersiz seçim! Tekrar deneyin.", 0.03)
+            time.sleep(1)
+
+if __name__ == "__main__":
+    main()
